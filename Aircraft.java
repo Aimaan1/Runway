@@ -1,4 +1,6 @@
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
@@ -211,6 +213,42 @@ public abstract class Aircraft extends Moveable implements drawable, Status {
         canvas.drawPolygon(xPoints, yPoints, xPoints.length);
 
         canvas.setTransform(originalTransform);
+    }
+
+    // draws each line of text inside a retro RPG-style dialogue box (double border, dark
+    // fill, monospaced font) instead of bare strings floating on the background;
+    // (anchorX, anchorY) is the box's left-edge, vertical-centre point, so the box sits
+    // beside whatever is at that height rather than on top of it
+    protected void drawTextWindow(Graphics drawer, int anchorX, int anchorY, String[] lines) {
+        Font retroFont = new Font("Monospaced", Font.PLAIN, 11);
+        drawer.setFont(retroFont);
+        FontMetrics metrics = drawer.getFontMetrics(retroFont);
+
+        int lineHeight = 13;
+        int padding = 5;
+        int textWidth = 0;
+        for (String line : lines) {
+            textWidth = Math.max(textWidth, metrics.stringWidth(line));
+        }
+        int boxWidth = textWidth + padding * 2;
+        int boxHeight = lines.length * lineHeight + padding * 2;
+        int x = anchorX;
+        int y = anchorY - boxHeight / 2;
+
+        // outer border
+        drawer.setColor(Color.WHITE);
+        drawer.fillRect(x, y, boxWidth, boxHeight);
+        // dark inset fill, classic RPG textbox navy
+        drawer.setColor(new Color(8, 8, 44));
+        drawer.fillRect(x + 3, y + 3, boxWidth - 6, boxHeight - 6);
+        // secondary inner border line for the double-lined look
+        drawer.setColor(new Color(90, 100, 210));
+        drawer.drawRect(x + 5, y + 5, boxWidth - 11, boxHeight - 11);
+
+        drawer.setColor(Color.WHITE);
+        for (int i = 0; i < lines.length; i++) {
+            drawer.drawString(lines[i], x + padding + 3, y + padding + lineHeight * (i + 1) - 3);
+        }
     }
 
     // angle (radians) from this aircraft's current position to its target, in screen-coordinate

@@ -68,14 +68,16 @@ public class CargoPlane extends Aircraft implements flyable {
     @Override
     public void visualRepresentation(Graphics drawer, int width, int height) {
         drawPlaneShape(drawer, width, height, getColor() != null ? getColor() : Color.RED);
-        drawer.setColor(Color.black);
-        drawer.drawString("CargoPlane: " + this.getAircraftID(), xPos + 5, yPos - 20);
-        drawer.drawString("Operator: " + this.getOperator(), xPos + 5, yPos - 5);
-        drawer.drawString("Model: " + this.getModel(), xPos + 5, yPos + 10);
-        drawer.drawString("Fuel Level: " + this.getFuelLevel() + "L", xPos + 5, yPos + 25);
-        drawer.drawString("Capacity: " + this.getCapacity(), xPos + 5, yPos + 40);
-        drawer.drawString("Current status: " + this.getStatus(), xPos + 5, yPos + 55);
-        drawer.drawString("Current target is: " + getCurrentNode().getNodeID(), xPos + 5, yPos + 70);
+        String[] lines = {
+            "CargoPlane: " + this.getAircraftID(),
+            "Operator: " + this.getOperator(),
+            "Model: " + this.getModel(),
+            "Fuel Level: " + this.getFuelLevel() + "L",
+            "Capacity: " + this.getCapacity(),
+            "Current status: " + this.getStatus(),
+            "Current target is: " + getCurrentNode().getNodeID()
+        };
+        drawTextWindow(drawer, xPos + width / 2 + 10, yPos, lines);
     }
 
     // allows you to built up the status for future board
