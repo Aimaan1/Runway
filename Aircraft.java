@@ -183,6 +183,30 @@ public abstract class Aircraft extends Moveable implements drawable, Status {
 
         canvas.setColor(fillColor);
         canvas.fillPolygon(xPoints, yPoints, xPoints.length);
+
+        // livery stripe running the length of the fuselage
+        canvas.setColor(fillColor.darker());
+        int stripeWidth = Math.max(2, scale(width, 0.05));
+        canvas.fillRect(-stripeWidth / 2, -scale(height, 0.5), stripeWidth, height);
+
+        // engine nacelles slung under each wing
+        canvas.setColor(new Color(60, 60, 65));
+        int engineWidth = Math.max(3, scale(width, 0.08));
+        int engineHeight = Math.max(4, scale(height, 0.12));
+        canvas.fillOval(scale(width, 0.22) - engineWidth / 2, scale(height, 0.05), engineWidth, engineHeight);
+        canvas.fillOval(-scale(width, 0.22) - engineWidth / 2, scale(height, 0.05), engineWidth, engineHeight);
+
+        // cockpit windshield near the nose
+        canvas.setColor(new Color(35, 45, 60));
+        int cockpitWidth = Math.max(3, scale(width, 0.1));
+        int cockpitHeight = Math.max(4, scale(height, 0.12));
+        canvas.fillOval(-cockpitWidth / 2, -scale(height, 0.5) + scale(height, 0.04), cockpitWidth, cockpitHeight);
+
+        // tail fin accent
+        canvas.setColor(fillColor.brighter());
+        int finWidth = Math.max(2, scale(width, 0.05));
+        canvas.fillRect(-finWidth / 2, scale(height, 0.3), finWidth, scale(height, 0.2));
+
         canvas.setColor(Color.DARK_GRAY);
         canvas.drawPolygon(xPoints, yPoints, xPoints.length);
 
