@@ -31,6 +31,8 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
     private ArrayList<Node> outsideLoop = new ArrayList<>();
     private ArrayList<AirwayGate> allGates = new ArrayList<>();
     private FlightBoard flightBoard = new FlightBoard(aircraftsOnSite);
+    // fixed seed so the grass texture doesn't re-randomize (and flicker) every repaint
+    private ArrayList<double[]> grassTufts = new ArrayList<>();
 
     // intializes time
     public JPanelVisualizer(JFrame jframePanel) {
@@ -174,8 +176,36 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
         aircraftsOnSite.add(testFlight3);
         
 
+        // pre-generate scattered grass tuft positions (as fractions of panel size) once,
+        // so the texture stays put across the 100fps repaint loop instead of shimmering
+        java.util.Random grassRandom = new java.util.Random(42);
+        for (int i = 0; i < 500; i++) {
+            grassTufts.add(new double[]{grassRandom.nextDouble(), grassRandom.nextDouble(), grassRandom.nextDouble()});
+        }
+
         timer = new Timer(secondsPerFrame, this); // every secondsPerFrame time, = 1 frame
         timer.start(); // starts the timer
+    }
+
+    // draws a mowed-lawn stripe pattern plus scattered tufts instead of a flat green rectangle
+    private void drawGrass(Graphics g, int width, int height) {
+        g.setColor(new Color(30, 110, 40));
+        g.fillRect(0, 0, width, height);
+
+        int stripeWidth = 45;
+        for (int sx = 0; sx * stripeWidth < width; sx++) {
+            g.setColor(sx % 2 == 0 ? new Color(36, 122, 48) : new Color(24, 98, 34));
+            g.fillRect(sx * stripeWidth, 0, stripeWidth, height);
+        }
+
+        for (double[] tuft : grassTufts) {
+            int tx = (int) (tuft[0] * width);
+            int ty = (int) (tuft[1] * height);
+            int shadeVariance = (int) (tuft[2] * 40) - 20;
+            int green = Math.min(255, Math.max(0, 112 + shadeVariance));
+            g.setColor(new Color(18, green, 28));
+            g.fillOval(tx, ty, 3, 3);
+        }
     }
 
     @Override
@@ -288,8 +318,7 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
         // put anything you want to redraw, like images or shapes here, otherwise they won't be redrawn
         super.paintComponent(g);// put anything drawn after this line
         // background
-        g.setColor(new Color(0,100,0));
-        g.fillRect(0, 0, JframeRef.getWidth(), JframeRef.getHeight());
+        drawGrass(g, JframeRef.getWidth(), JframeRef.getHeight());
         // draw airfield
         g.setColor(Color.GRAY);
         g.fillRect(0, 0, JframeRef.getWidth(), 150);
