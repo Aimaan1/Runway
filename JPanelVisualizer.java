@@ -1,5 +1,8 @@
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GradientPaint;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
@@ -33,6 +36,10 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
     private FlightBoard flightBoard = new FlightBoard(aircraftsOnSite);
     // fixed seed so the grass texture doesn't re-randomize (and flicker) every repaint
     private ArrayList<double[]> grassTufts = new ArrayList<>();
+    // fixed positions for water sparkle highlights; only their twinkle brightness animates
+    private ArrayList<double[]> waterSparkles = new ArrayList<>();
+    // advances every frame so wave ripples and sparkles animate smoothly over time
+    private long frameCount = 0;
 
     // intializes time
     public JPanelVisualizer(JFrame jframePanel) {
@@ -183,6 +190,13 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
             grassTufts.add(new double[]{grassRandom.nextDouble(), grassRandom.nextDouble(), grassRandom.nextDouble()});
         }
 
+        // pre-generate scattered water sparkle positions the same way, so they stay put
+        // and only their twinkle brightness (driven by frameCount) animates
+        java.util.Random waterRandom = new java.util.Random(7);
+        for (int i = 0; i < 150; i++) {
+            waterSparkles.add(new double[]{waterRandom.nextDouble(), waterRandom.nextDouble(), waterRandom.nextDouble()});
+        }
+
         timer = new Timer(secondsPerFrame, this); // every secondsPerFrame time, = 1 frame
         timer.start(); // starts the timer
     }
@@ -208,10 +222,64 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
         }
     }
 
+    // draws a gradient body of water with rippling wave bands, twinkling sparkle
+    // highlights and a foam line along the shore, instead of a flat blue rectangle
+    private void drawWater(Graphics g, int x, int y, int width, int height) {
+        Graphics2D g2 = (Graphics2D) g;
+        Object oldHint = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // base gradient: brighter near the shore, deeper toward the bottom
+        g2.setPaint(new GradientPaint(x, y, new Color(35, 110, 175), x, y + height, new Color(8, 35, 80)));
+        g2.fillRect(x, y, width, height);
+
+        // rippling wave bands, phase-shifted over time for a subtle animated shimmer
+        double phase = frameCount * 0.03;
+        int step = 6;
+        int bandSpacing = Math.max(16, height / 9);
+        for (int bandIndex = 0; bandIndex * bandSpacing < height; bandIndex++) {
+            int baseY = y + bandIndex * bandSpacing + bandSpacing / 2;
+            int points = width / step + 2;
+            int[] xPoints = new int[points];
+            int[] yPoints = new int[points];
+            double amplitude = 3 + (bandIndex % 3);
+            double wavelength = 70 + bandIndex * 5;
+            for (int i = 0; i < points; i++) {
+                int px = x + i * step;
+                double wave = Math.sin(px / wavelength + phase + bandIndex) * amplitude;
+                xPoints[i] = px;
+                yPoints[i] = (int) (baseY + wave);
+            }
+            int shade = 90 + (bandIndex % 3) * 25;
+            g2.setColor(new Color(60, shade + 60, shade + 110, 130));
+            g2.drawPolyline(xPoints, yPoints, points);
+        }
+
+        // scattered sparkle highlights at fixed spots, twinkling in and out over time
+        for (double[] sparkle : waterSparkles) {
+            int sx = x + (int) (sparkle[0] * width);
+            int sy = y + (int) (sparkle[1] * height);
+            double twinkle = (Math.sin(phase * 2 + sparkle[2] * Math.PI * 2) + 1) / 2; // 0..1
+            int alpha = (int) (40 + twinkle * 140);
+            g2.setColor(new Color(220, 240, 255, alpha));
+            g2.fillOval(sx, sy, 2, 2);
+        }
+
+        // foam line marking the shoreline where the water meets the tarmac above
+        g2.setColor(new Color(230, 240, 245, 200));
+        for (int fx = x; fx < x + width; fx += 14) {
+            int fy = y + (int) (Math.sin(fx / 40.0 + phase) * 2);
+            g2.drawLine(fx, fy, fx + 8, fy);
+        }
+
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldHint != null ? oldHint : RenderingHints.VALUE_ANTIALIAS_DEFAULT);
+    }
+
     @Override
-    public void actionPerformed(ActionEvent e) { 
+    public void actionPerformed(ActionEvent e) {
         // this entire function is used to update this element every frame
         // key note: increase in xPos = more to right, increase in Y makes it go down
+        frameCount++;
 
             for (int i = 0; i < aircraftsOnSite.size(); i++) {
                 Aircraft selectedAircraft = aircraftsOnSite.get(i);
@@ -368,16 +436,34 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
             allGates.get(i).visualRepresentation(g, JframeRef.getWidth()/9 , 200);
             // g.fillRect(JframeRef.getWidth()/9 * i, 600, JframeRef.getWidth()/9 , 200);
         }
-        // Making terminal
-        g.setColor(Color.BLUE);
-        g.fillRect(0, JframeRef.getHeight()-150, JframeRef.getWidth(), 200);
+        // water beyond the terminal apron
+        drawWater(g, 0, JframeRef.getHeight()-150, JframeRef.getWidth(), 200);
         // air traffic control
         airControl.visualRepresentation(g, 50,50);
-        // visualize noeds
+        // visualize nodes as flashing airfield lights: brightness pulses over time, phase
+        // offset per node so the flash appears to travel sequentially down the path, like
+        // real runway/taxiway lead-in lighting
+        Graphics2D g2Nodes = (Graphics2D) g;
+        Object nodeLightHint = g2Nodes.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2Nodes.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         for (int i = 0; i < airportNav.size(); i++) {
-            g.setColor(Color.GREEN);
-            g.fillOval(airportNav.get(i).getXPos(), airportNav.get(i).getYPos(), 10, 10);
+            Node navNode = airportNav.get(i);
+            int cx = navNode.getXPos() + 5;
+            int cy = navNode.getYPos() + 5;
+
+            double brightness = (Math.sin(frameCount * 0.05 - i * 0.6) + 1) / 2; // 0..1
+            int coreAlpha = (int) (100 + brightness * 155);
+            int glowRadius = (int) (9 + brightness * 5);
+
+            // soft outer glow
+            g2Nodes.setColor(new Color(80, 255, 120, coreAlpha / 4));
+            g2Nodes.fillOval(cx - glowRadius, cy - glowRadius, glowRadius * 2, glowRadius * 2);
+
+            // bright light core
+            g2Nodes.setColor(new Color(60, 255, 90, coreAlpha));
+            g2Nodes.fillOval(cx - 5, cy - 5, 10, 10);
         }
+        g2Nodes.setRenderingHint(RenderingHints.KEY_ANTIALIASING, nodeLightHint != null ? nodeLightHint : RenderingHints.VALUE_ANTIALIAS_DEFAULT);
 
         // visualize planes
        for (int i = 0; i < aircraftsOnSite.size(); i++) {
