@@ -1,5 +1,8 @@
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GradientPaint;
+import java.awt.RenderingHints;
 import java.util.ArrayList;
 
 public class AirwayGate implements drawable {
@@ -128,16 +131,70 @@ public class AirwayGate implements drawable {
         }
     }
 
-    // for drawing elements of gate
+    // for drawing elements of gate: a small terminal building with a jet
+    // bridge reaching up to the stand, a gate ID plate and a status light
     @Override
     public void visualRepresentation(Graphics drawer, int width, int height) {
+        Graphics2D g2 = (Graphics2D) drawer;
+        Object oldHint = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
         int x = getGateNode().getXPos() - width/2;
         int y = getGateNode().getYPos();
 
-        drawer.setColor(Color.white);
-        drawer.fillRect(x, y, width, height);
+        // shadow on the apron where the aircraft parks
+        g2.setColor(new Color(0, 0, 0, 50));
+        g2.fillOval(x + width/2 - 30, y - 8, 60, 14);
 
-        drawer.setColor(Color.black);
-        drawer.drawString(gateID, x + 5, y + 15);
+        // jet bridge, reaching up from the terminal toward the parked aircraft
+        int bridgeWidth = Math.max(14, width / 6);
+        int bridgeX = x + width/2 - bridgeWidth/2;
+        int bridgeTopY = y - 70;
+        g2.setColor(new Color(205, 205, 210));
+        g2.fillRect(bridgeX, bridgeTopY, bridgeWidth, y - bridgeTopY);
+        g2.setColor(new Color(150, 150, 155));
+        for (int seg = bridgeTopY; seg < y; seg += 10) {
+            g2.drawLine(bridgeX, seg, bridgeX + bridgeWidth, seg);
+        }
+        g2.setColor(new Color(180, 180, 185));
+        g2.fillOval(bridgeX - 6, bridgeTopY - 12, bridgeWidth + 12, 20);
+
+        // terminal building body, shaded from top to bottom
+        GradientPaint wallPaint = new GradientPaint(x, y, new Color(238, 238, 240), x, y + height, new Color(198, 200, 205));
+        g2.setPaint(wallPaint);
+        g2.fillRoundRect(x, y, width, height, 14, 14);
+        g2.setColor(new Color(140, 140, 145));
+        g2.drawRoundRect(x, y, width, height, 14, 14);
+
+        // roof lip
+        g2.setColor(new Color(90, 95, 100));
+        g2.fillRect(x - 4, y - 6, width + 8, 10);
+
+        // row of terminal windows
+        g2.setColor(new Color(120, 200, 230));
+        int winW = Math.max(10, width / 6);
+        int winY = y + 18;
+        for (int wx = x + 10; wx + winW < x + width - 10; wx += winW + 8) {
+            g2.fillRoundRect(wx, winY, winW, 20, 4, 4);
+            g2.setColor(new Color(255, 255, 255, 120));
+            g2.drawLine(wx + winW/2, winY, wx + winW/2, winY + 20);
+            g2.setColor(new Color(120, 200, 230));
+        }
+
+        // status light: green when free, red when occupied, gray when closed
+        Color lightColor = !status ? Color.GRAY : (isFree() ? new Color(60, 200, 90) : new Color(220, 60, 60));
+        g2.setColor(lightColor);
+        g2.fillOval(x + width - 22, y + height - 22, 14, 14);
+        g2.setColor(Color.BLACK);
+        g2.drawOval(x + width - 22, y + height - 22, 14, 14);
+
+        // gate ID plate
+        int plateWidth = Math.max(46, width/2);
+        g2.setColor(new Color(30, 30, 30));
+        g2.fillRoundRect(x + 8, y + height - 32, plateWidth, 22, 6, 6);
+        g2.setColor(Color.WHITE);
+        g2.drawString(gateID, x + 14, y + height - 16);
+
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldHint != null ? oldHint : RenderingHints.VALUE_ANTIALIAS_DEFAULT);
     }
 }

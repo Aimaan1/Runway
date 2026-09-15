@@ -1,5 +1,9 @@
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GradientPaint;
+import java.awt.Polygon;
+import java.awt.RenderingHints;
 import java.util.ArrayList;
 
 public class AirTrafficControl implements drawable, Position {
@@ -135,13 +139,76 @@ public class AirTrafficControl implements drawable, Position {
         return null; // after checking that all other slots are null, meaning this branch isn't it
     }
     
-    // for drawing elements of airtraffic control
+    // for drawing elements of airtraffic control: a tapered concrete shaft
+    // topped with a glass observation cab, an antenna and a blinking beacon
     @Override
     public void visualRepresentation(Graphics drawer, int width, int height) {
-        drawer.setColor(Color.GRAY);
-        drawer.fillRect(Location.getXPos()-width/2, Location.getYPos()-height/2, width, height);
-        drawer.setColor(Color.CYAN);
-        drawer.fillRect(Location.getXPos(), Location.getYPos(), width, height);
+        Graphics2D g2 = (Graphics2D) drawer;
+        Object oldHint = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int baseX = Location.getXPos();
+        int baseY = Location.getYPos();
+
+        int towerHeight = height * 6;
+        int shaftHalfWidthBottom = width / 2;
+        int shaftHalfWidthTop = width / 3;
+        int cabWidth = (int) (width * 1.9);
+        int cabHeight = (int) (height * 1.1);
+
+        int shaftBottomY = baseY;
+        int shaftTopY = baseY - towerHeight;
+
+        // ground shadow
+        g2.setColor(new Color(0, 0, 0, 60));
+        g2.fillOval(baseX - shaftHalfWidthBottom, shaftBottomY - 5, shaftHalfWidthBottom * 2, 16);
+
+        // tapered concrete shaft
+        Polygon shaft = new Polygon();
+        shaft.addPoint(baseX - shaftHalfWidthBottom, shaftBottomY);
+        shaft.addPoint(baseX + shaftHalfWidthBottom, shaftBottomY);
+        shaft.addPoint(baseX + shaftHalfWidthTop, shaftTopY);
+        shaft.addPoint(baseX - shaftHalfWidthTop, shaftTopY);
+        g2.setPaint(new GradientPaint(baseX - shaftHalfWidthBottom, 0, new Color(220, 220, 215),
+                baseX + shaftHalfWidthBottom, 0, new Color(150, 150, 148)));
+        g2.fillPolygon(shaft);
+        g2.setColor(new Color(110, 110, 105));
+        g2.drawPolygon(shaft);
+
+        // warning stripe partway up the shaft
+        g2.setColor(new Color(190, 45, 45));
+        g2.fillRect(baseX - shaftHalfWidthBottom + 2, shaftBottomY - (int) (towerHeight * 0.25), shaftHalfWidthBottom * 2 - 4, 6);
+
+        // observation deck rim
+        int cabX = baseX - cabWidth / 2;
+        int cabY = shaftTopY - cabHeight;
+        g2.setColor(new Color(85, 85, 85));
+        g2.fillRect(cabX - 5, shaftTopY - 7, cabWidth + 10, 9);
+
+        // cab body
+        g2.setColor(new Color(65, 75, 85));
+        g2.fillRoundRect(cabX, cabY, cabWidth, cabHeight, 10, 10);
+
+        // glass band around the cab, with mullions
+        int glassHeight = (int) (cabHeight * 0.6);
+        g2.setColor(new Color(120, 205, 235, 235));
+        g2.fillRoundRect(cabX + 4, cabY + 4, cabWidth - 8, glassHeight, 8, 8);
+        g2.setColor(new Color(255, 255, 255, 110));
+        for (int wx = cabX + 8; wx < cabX + cabWidth - 6; wx += 8) {
+            g2.drawLine(wx, cabY + 4, wx, cabY + 4 + glassHeight);
+        }
+
+        // roof
+        g2.setColor(new Color(55, 60, 65));
+        g2.fillRect(cabX - 3, cabY - 6, cabWidth + 6, 6);
+
+        // antenna mast and beacon light
+        g2.setColor(Color.DARK_GRAY);
+        g2.drawLine(baseX, cabY - 6, baseX, cabY - 28);
+        g2.setColor(new Color(230, 40, 40));
+        g2.fillOval(baseX - 4, cabY - 34, 8, 8);
+
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldHint != null ? oldHint : RenderingHints.VALUE_ANTIALIAS_DEFAULT);
     }
 
     // allows air traffic control to decide whether a plane can takeoff or not
