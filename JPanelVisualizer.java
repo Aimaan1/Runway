@@ -11,6 +11,10 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.KeyEvent;
+import javax.swing.AbstractAction;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
 
 // this entire class is just used to display stuff on JPanel, pls don't delete as it is useful base 
 // for drawing stuff
@@ -40,6 +44,8 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
     private ArrayList<double[]> waterSparkles = new ArrayList<>();
     // advances every frame so wave ripples and sparkles animate smoothly over time
     private long frameCount = 0;
+    // daytime / rain / lightning cycle, calculated on background threads (see WeatherSystem)
+    private WeatherSystem weather;
 
     // intializes time
     public JPanelVisualizer(JFrame jframePanel) {
@@ -141,7 +147,6 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
         waitingBay.add(miniRoadNode2);
         waitingBay.add(miniRoadNode3);
         waitingBay.add(miniRoadNode4);
-
         // outside loop
         outsideLoop.add(leftFlyOff);
         outsideLoop.add(leftTopFlyOff);
@@ -196,6 +201,27 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
         for (int i = 0; i < 150; i++) {
             waterSparkles.add(new double[]{waterRandom.nextDouble(), waterRandom.nextDouble(), waterRandom.nextDouble()});
         }
+
+        // weather: every nav node and gate is a light source that glows when it gets dark
+        ArrayList<Vector2> lightSources = new ArrayList<>();
+        for (Node navNode : airportNav) {
+            lightSources.add(navNode.getPosition());
+        }
+        for (AirwayGate gate : allGates) {
+            lightSources.add(gate.getGateNode().getPosition());
+        }
+        lightSources.add(airControl.getPosition());
+        weather = new WeatherSystem(lightSources);
+        weather.start();
+
+        // press W to jump to the next weather state
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_W, 0), "nextWeather");
+        getActionMap().put("nextWeather", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                weather.skipToNextWeather();
+            }
+        });
 
         timer = new Timer(secondsPerFrame, this); // every secondsPerFrame time, = 1 frame
         timer.start(); // starts the timer
@@ -307,7 +333,8 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
                 // if plane can fly, then it starts to fly
                 selectedAircraft.warmUpEngines();
                 selectedAircraft.decreaseCountdown();
-                if (selectedAircraft.CooldownOver()) {
+                // during a lightning storm ATC issues a ground stop, so planes hold on the runway
+                if (selectedAircraft.CooldownOver() && !weather.isGroundStop()) {
                     selectedAircraft.getFlightPath().get(selectedAircraft.getFlightPath().size()-1).setOccupied(false);
                     airControl.ClearAircraftForTakeOff(selectedAircraft, outsideLoop, runway); // changes path to outside route
                 }
@@ -469,6 +496,10 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
        for (int i = 0; i < aircraftsOnSite.size(); i++) {
         aircraftsOnSite.get(i).visualRepresentation(g, 50, 50);
        }
+
+        // weather (sunlight, clouds, darkness, rain, lightning) drawn over the whole scene
+        weather.drawWeather(g, getWidth(), getHeight());
+        weather.drawHud(g, 10, getHeight() - 10);
 
         // flight board, drawn last so it sits on top of everything else
         // uses this panel's own size (not the JFrame's) so it isn't pushed past the
