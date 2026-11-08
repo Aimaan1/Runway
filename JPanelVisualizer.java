@@ -3,6 +3,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GradientPaint;
 import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
@@ -46,6 +47,10 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
     private long frameCount = 0;
     // daytime / rain / lightning cycle, calculated on background threads (see WeatherSystem)
     private WeatherSystem weather;
+    // low-resolution canvas the scene is drawn into for the pixel-art look (see PixelArt)
+    private BufferedImage pixelBuffer;
+    // paints the grass, asphalt, water and guide lights in pixel-art mode
+    private PixelScene pixelScene = new PixelScene();
 
     // intializes time
     public JPanelVisualizer(JFrame jframePanel) {
@@ -223,6 +228,15 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
             }
         });
 
+        // press P to toggle the pixel-art look on and off
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0), "togglePixelArt");
+        getActionMap().put("togglePixelArt", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                PixelArt.toggle();
+            }
+        });
+
         timer = new Timer(secondsPerFrame, this); // every secondsPerFrame time, = 1 frame
         timer.start(); // starts the timer
     }
@@ -253,7 +267,7 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
     private void drawWater(Graphics g, int x, int y, int width, int height) {
         Graphics2D g2 = (Graphics2D) g;
         Object oldHint = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, PixelArt.aaHint());
 
         // base gradient: brighter near the shore, deeper toward the bottom
         g2.setPaint(new GradientPaint(x, y, new Color(35, 110, 175), x, y + height, new Color(8, 35, 80)));
@@ -412,6 +426,72 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
     protected void paintComponent(Graphics g) {
         // put anything you want to redraw, like images or shapes here, otherwise they won't be redrawn
         super.paintComponent(g);// put anything drawn after this line
+
+        if (!PixelArt.isEnabled()) {
+            drawScene(g);
+            drawOverlay(g);
+            return;
+        }
+
+        // pixel-art mode: draw the world into a small image (one art pixel = PixelArt.SCALE screen
+        // pixels), crush it to a dithered retro palette, then blow it up with hard square pixels
+        int scale = PixelArt.SCALE;
+        int lowWidth = Math.max(1, (getWidth() + scale - 1) / scale);
+        int lowHeight = Math.max(1, (getHeight() + scale - 1) / scale);
+        if (pixelBuffer == null || pixelBuffer.getWidth() != lowWidth || pixelBuffer.getHeight() != lowHeight) {
+            pixelBuffer = new BufferedImage(lowWidth, lowHeight, BufferedImage.TYPE_INT_RGB);
+        }
+        // hand-made pixel art, drawn directly in art-pixel coordinates
+        Graphics2D art = pixelBuffer.createGraphics();
+        PixelArt.makeCrisp(art);
+        int frameWidth = JframeRef.getWidth();
+        int frameHeight = JframeRef.getHeight();
+        pixelScene.drawGround(art, lowWidth, lowHeight, frameWidth, frameHeight);
+        pixelScene.drawWater(art, lowWidth, lowHeight, frameHeight - 150, frameCount, waterSparkles);
+        for (int i = 0; i < allGates.size(); i++) {
+            allGates.get(i).drawPixelArt(art, frameWidth / 9, 200, frameCount);
+        }
+        airControl.drawPixelArt(art, frameCount);
+        pixelScene.drawGuideLights(art, airportNav, frameCount);
+        for (int i = 0; i < aircraftsOnSite.size(); i++) {
+            aircraftsOnSite.get(i).drawPixelSprite(art);
+        }
+        art.dispose();
+
+        // weather works in screen coordinates, so scale it down onto the same pixel grid
+        Graphics2D low = pixelBuffer.createGraphics();
+        PixelArt.makeCrisp(low);
+        low.scale(1.0 / scale, 1.0 / scale);
+        weather.drawWeather(low, getWidth(), getHeight());
+        low.dispose();
+
+        Graphics2D screen = (Graphics2D) g.create();
+        screen.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        screen.drawImage(pixelBuffer, 0, 0, lowWidth * scale, lowHeight * scale, null);
+        // text stays at full resolution (but un-smoothed) so it reads like a crisp retro font
+        screen.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        drawOverlay(screen);
+        screen.dispose();
+    }
+
+    // text panels and labels: drawn on top of the (possibly pixelated) scene at full resolution
+    private void drawOverlay(Graphics g) {
+        for (int i = 0; i < allGates.size(); i++) {
+            allGates.get(i).drawLabel(g, JframeRef.getWidth()/9, 200);
+        }
+        for (int i = 0; i < aircraftsOnSite.size(); i++) {
+            aircraftsOnSite.get(i).drawInfo(g, 50, 50);
+        }
+        weather.drawHud(g, 10, getHeight() - 10);
+
+        // flight board, drawn last so it sits on top of everything else
+        // uses this panel's own size (not the JFrame's) so it isn't pushed past the
+        // visible area by the title bar/borders, which would clip off the bottom rows
+        flightBoard.visualRepresentation(g, getWidth(), getHeight());
+    }
+
+    // everything in the world itself: ground, buildings, lights, planes and weather
+    private void drawScene(Graphics g) {
         // background
         drawGrass(g, JframeRef.getWidth(), JframeRef.getHeight());
         // draw airfield
@@ -472,7 +552,7 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
         // real runway/taxiway lead-in lighting
         Graphics2D g2Nodes = (Graphics2D) g;
         Object nodeLightHint = g2Nodes.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-        g2Nodes.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2Nodes.setRenderingHint(RenderingHints.KEY_ANTIALIASING, PixelArt.aaHint());
         for (int i = 0; i < airportNav.size(); i++) {
             Node navNode = airportNav.get(i);
             int cx = navNode.getXPos() + 5;
@@ -494,16 +574,10 @@ public class JPanelVisualizer extends JPanel implements ActionListener {
 
         // visualize planes
        for (int i = 0; i < aircraftsOnSite.size(); i++) {
-        aircraftsOnSite.get(i).visualRepresentation(g, 50, 50);
+        aircraftsOnSite.get(i).drawSprite(g, 50, 50);
        }
 
         // weather (sunlight, clouds, darkness, rain, lightning) drawn over the whole scene
         weather.drawWeather(g, getWidth(), getHeight());
-        weather.drawHud(g, 10, getHeight() - 10);
-
-        // flight board, drawn last so it sits on top of everything else
-        // uses this panel's own size (not the JFrame's) so it isn't pushed past the
-        // visible area by the title bar/borders, which would clip off the bottom rows
-        flightBoard.visualRepresentation(g, getWidth(), getHeight());
     }
 }
