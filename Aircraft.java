@@ -4,6 +4,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 
 public abstract class Aircraft extends Moveable implements drawable, Status {
     private final String aircraftID;
@@ -157,6 +158,145 @@ public abstract class Aircraft extends Moveable implements drawable, Status {
         }
     }
 
+    // ------------------------------------------------------------------ pixel-art sprite
+
+    // plane seen from above, nose pointing up. only the fill is described here:
+    //  b = body, t = livery stripe, w = cockpit glass, e = engine.
+    // the outline and the top-left lighting are worked out automatically after rotating,
+    // so the sprite is always lit from the same side whichever way it faces
+    private static final String[] PLANE_SPRITE = {
+        ".......b.......",
+        "......bwb......",
+        "......bwb......",
+        "......btb......",
+        "......btb......",
+        ".....bbtbb.....",
+        "....bbbtbbb....",
+        "..bbbbbtbbbbb..",
+        "bbbbbbbtbbbbbbb",
+        "bb.e..btb..e.bb",
+        "......btb......",
+        "......btb......",
+        ".....bbtbb.....",
+        "...bbbbtbbbb...",
+        ".......t......."
+    };
+
+    private BufferedImage[] spriteCache;   // one per facing: 0 up, 1 right, 2 down, 3 left
+    private BufferedImage[] shadowCache;
+    private Color spriteCacheColor;
+    private int facing = 0;
+
+    // colour used when no colour has been set; subclasses pick their own
+    protected Color defaultColor() {
+        return Color.RED;
+    }
+
+    // draws the plane as a pixel sprite (snapped to the 4 directions) with a drop shadow that
+    // sits further away while the plane is in the air. coordinates are art pixels
+    public void drawPixelSprite(Graphics2D art) {
+        Color base = getColor() != null ? getColor() : defaultColor();
+        if (spriteCache == null || !base.equals(spriteCacheColor)) {
+            buildSprites(base);
+        }
+        Vector2 target = getTarget();
+        if (target != null) {
+            int dx = target.getXPos() - getXPos();
+            int dy = target.getYPos() - getYPos();
+            if (dx != 0 || dy != 0) {
+                facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+            }
+        }
+        int s = PixelArt.SCALE;
+        int size = spriteCache[facing].getWidth();
+        int x = getXPos() / s - size / 2;
+        int y = getYPos() / s - size / 2;
+        int shadowOffset = getFlying() ? 7 : 2;
+        art.drawImage(shadowCache[facing], x + shadowOffset / 2, y + shadowOffset, null);
+        art.drawImage(spriteCache[facing], x, y, null);
+    }
+
+    private void buildSprites(Color raw) {
+        // soften pure screen colours (cyan, magenta...) into a warmer painted palette
+        Color body = PixelArt.mix(raw, new Color(246, 226, 190), 0.22);
+        Color bodyLight = PixelArt.mix(body, Color.WHITE, 0.38);
+        Color bodyDark = PixelArt.shade(body, 0.7);
+        Color outline = PixelArt.mix(PixelArt.shade(body, 0.3), PixelArt.OUTLINE, 0.6);
+        Color stripe = new Color(248, 240, 220);
+        Color stripeDark = new Color(212, 198, 176);
+        Color glass = new Color(62, 98, 140);
+        Color glassLight = new Color(160, 210, 236);
+        Color engine = new Color(86, 84, 98);
+        Color engineDark = new Color(58, 56, 68);
+
+        spriteCache = new BufferedImage[4];
+        shadowCache = new BufferedImage[4];
+        spriteCacheColor = raw;
+
+        int n = PLANE_SPRITE.length;
+        char[][] grid = new char[n][n];
+        for (int r = 0; r < n; r++) {
+            grid[r] = PLANE_SPRITE[r].toCharArray();
+        }
+        for (int dir = 0; dir < 4; dir++) {
+            int size = n + 2; // room for the outline
+            BufferedImage sprite = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+            BufferedImage shadow = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+            int shadowRgb = new Color(24, 40, 16, 80).getRGB();
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    char c = cell(grid, x - 1, y - 1);
+                    Color colour = null;
+                    if (c == '.') {
+                        if (cell(grid, x - 2, y - 1) != '.' || cell(grid, x, y - 1) != '.'
+                                || cell(grid, x - 1, y - 2) != '.' || cell(grid, x - 1, y) != '.') {
+                            colour = outline;
+                        }
+                    } else {
+                        boolean lit = cell(grid, x - 1, y - 2) == '.' || cell(grid, x - 2, y - 1) == '.';
+                        boolean shaded = cell(grid, x - 1, y) == '.' || cell(grid, x, y - 1) == '.';
+                        switch (c) {
+                            case 't': colour = shaded && !lit ? stripeDark : stripe; break;
+                            case 'w': colour = lit ? glassLight : glass; break;
+                            case 'e': colour = shaded ? engineDark : engine; break;
+                            default: colour = lit ? bodyLight : shaded ? bodyDark : body; break;
+                        }
+                    }
+                    if (colour != null) {
+                        sprite.setRGB(x, y, colour.getRGB());
+                        shadow.setRGB(x, y, shadowRgb);
+                    }
+                }
+            }
+            spriteCache[dir] = sprite;
+            shadowCache[dir] = shadow;
+            grid = rotateClockwise(grid);
+        }
+    }
+
+    private static char cell(char[][] grid, int x, int y) {
+        if (y < 0 || y >= grid.length || x < 0 || x >= grid[y].length) {
+            return '.';
+        }
+        return grid[y][x];
+    }
+
+    private static char[][] rotateClockwise(char[][] grid) {
+        int n = grid.length;
+        char[][] rotated = new char[n][n];
+        for (int r = 0; r < n; r++) {
+            for (int c = 0; c < n; c++) {
+                rotated[r][c] = grid[n - 1 - c][r];
+            }
+        }
+        return rotated;
+    }
+
+    // split drawing so the panel can render the plane into the pixel-art layer and the
+    // info text sharp on top of it; visualRepresentation still draws both
+    public abstract void drawSprite(Graphics drawer, int width, int height);
+    public abstract void drawInfo(Graphics drawer, int width, int height);
+
     // draws an airplane silhouette (nose, swept wings, tail wings) centred on this aircraft's
     // position and rotated to face its current heading; shared by both aircraft types.
     // shape points are in local space with the nose at "up" (0, -height/2), then the whole
@@ -220,6 +360,27 @@ public abstract class Aircraft extends Moveable implements drawable, Status {
     // (anchorX, anchorY) is the box's left-edge, vertical-centre point, so the box sits
     // beside whatever is at that height rather than on top of it
     protected void drawTextWindow(Graphics drawer, int anchorX, int anchorY, String[] lines) {
+        if (PixelArt.isEnabled()) {
+            // wooden frame + parchment dialogue box for the pixel-art look
+            Font font = PixelArt.font(11);
+            drawer.setFont(font);
+            FontMetrics fm = drawer.getFontMetrics(font);
+            int lineHeight = 13;
+            int textWidth = 0;
+            for (String line : lines) {
+                textWidth = Math.max(textWidth, fm.stringWidth(line));
+            }
+            int inset = PixelArt.BOX_INSET;
+            int boxWidth = textWidth + inset * 2;
+            int boxHeight = lines.length * lineHeight + inset * 2 - 2;
+            int boxY = anchorY - boxHeight / 2;
+            PixelArt.drawWoodenBox(drawer, anchorX, boxY, boxWidth, boxHeight);
+            for (int i = 0; i < lines.length; i++) {
+                drawer.setColor(i == 0 ? PixelArt.INK_ACCENT : PixelArt.INK);
+                drawer.drawString(lines[i], anchorX + inset, boxY + inset + lineHeight * (i + 1) - 4);
+            }
+            return;
+        }
         Font retroFont = new Font("Monospaced", Font.PLAIN, 11);
         drawer.setFont(retroFont);
         FontMetrics metrics = drawer.getFontMetrics(retroFont);

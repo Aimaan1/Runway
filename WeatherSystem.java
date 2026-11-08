@@ -402,7 +402,7 @@ public class WeatherSystem {
         WeatherFrame frame = latestFrame; // one volatile read; use this snapshot for the whole paint
 
         Graphics2D g2 = (Graphics2D) drawer.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, PixelArt.aaHint());
 
         // daytime: warm sunlight from the top-left corner
         if (frame.sunlight > 0.01f) {
@@ -455,7 +455,7 @@ public class WeatherSystem {
         }
 
         // lightning bolt: wide soft glow, then a bright core
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, PixelArt.aaHint());
         if (frame.bolt != null) {
             Stroke original = g2.getStroke();
             List<float[]> lines = frame.bolt.getPolylines();
@@ -502,9 +502,39 @@ public class WeatherSystem {
             "Next: " + frame.nextType.getLabel() + " in " + frame.secondsLeft + "s",
             "Raindrops: " + frame.rainCount + "   Splashes: " + frame.splashCount,
             String.format("Parallel update: %.1f ms on %d threads", frame.updateMillis, frame.workerThreads),
-            frame.groundStop ? "ATC: GROUND STOP - no takeoffs" : "ATC: departures normal",
-            "[W] skip to next weather"
+            frame.groundStop ? "ATC: GROUND STOP - no takeoffs" : "ATC: departures normal"
         };
+
+        if (PixelArt.isEnabled()) {
+            // wooden frame + parchment box to match the pixel-art scene
+            Graphics2D pg = (Graphics2D) drawer.create();
+            Font pf = PixelArt.font(11);
+            pg.setFont(pf);
+            FontMetrics pm = pg.getFontMetrics(pf);
+            int lh = 13;
+            int tw = 0;
+            for (String line : lines) {
+                tw = Math.max(tw, pm.stringWidth(line));
+            }
+            int inset = PixelArt.BOX_INSET;
+            int bw = tw + inset * 2;
+            int bh = lines.length * lh + inset * 2 - 2;
+            int by = bottomY - bh;
+            PixelArt.drawWoodenBox(pg, x, by, bw, bh);
+            for (int i = 0; i < lines.length; i++) {
+                if (i == 0) {
+                    pg.setColor(PixelArt.forParchment(frame.type.getHudColor()));
+                } else if (i == 4 && frame.groundStop) {
+                    pg.setColor(PixelArt.INK_ALERT);
+                } else {
+                    pg.setColor(PixelArt.INK);
+                }
+                pg.drawString(lines[i], x + inset, by + inset + lh * (i + 1) - 4);
+            }
+            drawWeatherKeyHint(pg, x, by - 6);
+            pg.dispose();
+            return;
+        }
 
         Graphics2D g2 = (Graphics2D) drawer.create();
         Font font = new Font("Monospaced", Font.PLAIN, 11);
@@ -538,6 +568,68 @@ public class WeatherSystem {
             }
             g2.drawString(lines[i], x + padding + 3, y + padding + lineHeight * (i + 1) - 1);
         }
+        drawWeatherKeyHint(g2, x, y - 6);
         g2.dispose();
+    }
+
+    /**
+     * Big, separate prompt telling the user they can press W to change the weather: a keyboard
+     * key button next to a bold label. The key "presses" itself briefly every 1.6 seconds so it
+     * catches the eye. bottomY is where the bottom edge of the prompt should sit.
+     */
+    private void drawWeatherKeyHint(Graphics2D g, int x, int bottomY) {
+        boolean pixel = PixelArt.isEnabled();
+        String label = "Press W to change the weather";
+        Font labelFont = pixel ? PixelArt.font(14) : new Font("Monospaced", Font.BOLD, 14);
+        FontMetrics labelMetrics = g.getFontMetrics(labelFont);
+
+        int key = 27;                                     // keycap size (a multiple of the pixel scale)
+        int pad = pixel ? PixelArt.BOX_INSET - 4 : 10;
+        int width = pad * 2 + key + 12 + labelMetrics.stringWidth(label);
+        int height = pad * 2 + key;
+        int y = bottomY - height;
+
+        // background panel, matching the style of the weather panel below it
+        if (pixel) {
+            PixelArt.drawWoodenBox(g, x, y, width, height);
+        } else {
+            g.setColor(Color.WHITE);
+            g.fillRect(x, y, width, height);
+            g.setColor(new Color(8, 8, 44));
+            g.fillRect(x + 3, y + 3, width - 6, height - 6);
+        }
+
+        // keycap: dark outline, darker "side" underneath, light face on top.
+        // while pressed the face sinks down and the side gets thinner
+        boolean pressed = (System.currentTimeMillis() % 1600) < 200;
+        int kx = x + pad;
+        int ky = y + pad;
+        int side = pressed ? 3 : 6;
+        Color outline = pixel ? PixelArt.OUTLINE : new Color(20, 20, 30);
+        Color sideColour = pixel ? new Color(170, 150, 128) : new Color(150, 150, 165);
+        Color face = pressed ? new Color(255, 236, 150) : new Color(250, 246, 236);
+        g.setColor(outline);
+        g.fillRect(kx, ky, key, key);
+        g.setColor(sideColour);
+        g.fillRect(kx + 3, ky + 3, key - 6, key - 6);
+        int faceY = ky + 3 + (6 - side);
+        int faceH = key - 6 - 6;
+        g.setColor(face);
+        g.fillRect(kx + 3, faceY, key - 6, faceH);
+        g.setColor(Color.WHITE);
+        g.fillRect(kx + 3, faceY, key - 6, 3); // shine along the top of the key
+
+        Font keyFont = new Font("Monospaced", Font.BOLD, 15);
+        FontMetrics keyMetrics = g.getFontMetrics(keyFont);
+        g.setFont(keyFont);
+        g.setColor(pixel ? PixelArt.INK : new Color(20, 20, 40));
+        g.drawString("W", kx + (key - keyMetrics.stringWidth("W")) / 2,
+                faceY + (faceH + keyMetrics.getAscent() - keyMetrics.getDescent()) / 2);
+
+        // the label itself
+        g.setFont(labelFont);
+        g.setColor(pixel ? PixelArt.INK_ACCENT : new Color(255, 220, 90));
+        g.drawString(label, kx + key + 12,
+                ky + (key + labelMetrics.getAscent() - labelMetrics.getDescent()) / 2);
     }
 }

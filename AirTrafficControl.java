@@ -145,7 +145,7 @@ public class AirTrafficControl implements drawable, Position {
     public void visualRepresentation(Graphics drawer, int width, int height) {
         Graphics2D g2 = (Graphics2D) drawer;
         Object oldHint = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, PixelArt.aaHint());
 
         int baseX = Location.getXPos();
         int baseY = Location.getYPos();
@@ -209,6 +209,120 @@ public class AirTrafficControl implements drawable, Position {
         g2.fillOval(baseX - 4, cabY - 34, 8, 8);
 
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldHint != null ? oldHint : RenderingHints.VALUE_ANTIALIAS_DEFAULT);
+    }
+
+    // pixel-art version: a stone lighthouse-style tower with a red band, a wooden balcony, a glass
+    // lookout cab under a shingled roof, and an antenna with a blinking beacon. art-pixel coords
+    public void drawPixelArt(Graphics2D art, long frame) {
+        int s = PixelArt.SCALE;
+        Color out = PixelArt.OUTLINE;
+        int cx = Location.getXPos() / s;
+        int baseY = Location.getYPos() / s;
+        int topY = baseY - 100;
+
+        Color stone = new Color(198, 186, 168);
+        Color stoneLight = new Color(224, 214, 196);
+        Color stoneDark = new Color(152, 142, 128);
+        Color mortar = new Color(132, 122, 110);
+        Color wood = new Color(160, 104, 58);
+        Color woodLight = new Color(192, 134, 80);
+        Color woodDark = new Color(118, 74, 40);
+
+        // shadow falling down-right
+        PixelArt.rect(art, cx - 4, baseY - 1, 18, 3, new Color(20, 40, 10, 70));
+
+        // tapered stone shaft, brick rows with staggered mortar joints
+        for (int y = topY; y < baseY; y++) {
+            int halfWidth = 8 - (baseY - y) * 2 / 100;
+            int left = cx - halfWidth;
+            int right = cx + halfWidth;
+            PixelArt.px(art, left - 1, y, out);
+            PixelArt.px(art, right, y, out);
+            int row = (baseY - y) / 3;
+            boolean mortarRow = (baseY - y) % 3 == 0;
+            for (int x = left; x < right; x++) {
+                Color c;
+                if (mortarRow || (x - left + (row % 2) * 3) % 6 == 0) {
+                    c = mortar;
+                } else if (x < left + 2) {
+                    c = stoneLight;
+                } else if (x >= right - 2) {
+                    c = stoneDark;
+                } else {
+                    c = PixelArt.hash(x / 6, row, 50) < 0.3 ? PixelArt.shade(stone, 0.94) : stone;
+                }
+                PixelArt.px(art, x, y, c);
+            }
+        }
+        PixelArt.rect(art, cx - 9, baseY, 18, 1, out);
+
+        // red band partway up
+        int bandY = baseY - 28;
+        int bandHalf = 8 - 28 * 2 / 100;
+        PixelArt.rect(art, cx - bandHalf, bandY, bandHalf * 2, 3, new Color(184, 66, 52));
+        PixelArt.rect(art, cx - bandHalf, bandY, bandHalf * 2, 1, new Color(220, 104, 82));
+        PixelArt.rect(art, cx - bandHalf, bandY + 2, bandHalf * 2, 1, new Color(136, 44, 38));
+
+        // small slit windows up the shaft
+        for (int wy = baseY - 50; wy > topY + 6; wy -= 22) {
+            PixelArt.rect(art, cx - 1, wy - 1, 3, 5, out);
+            PixelArt.rect(art, cx, wy, 1, 3, new Color(250, 214, 120));
+        }
+
+        // arched door at the base
+        PixelArt.rect(art, cx - 3, baseY - 9, 6, 9, out);
+        PixelArt.rect(art, cx - 2, baseY - 8, 4, 8, wood);
+        PixelArt.rect(art, cx - 2, baseY - 8, 4, 1, woodLight);
+        PixelArt.px(art, cx, baseY - 4, woodDark);
+        PixelArt.px(art, cx + 1, baseY - 4, new Color(244, 204, 92));
+
+        // wooden balcony with railing posts
+        int deckY = topY - 3;
+        PixelArt.rect(art, cx - 13, deckY, 26, 4, out);
+        PixelArt.rect(art, cx - 12, deckY + 1, 24, 2, wood);
+        PixelArt.rect(art, cx - 12, deckY + 1, 24, 1, woodLight);
+        PixelArt.rect(art, cx - 12, deckY - 4, 24, 1, woodDark);
+        for (int x = cx - 12; x < cx + 12; x += 3) {
+            PixelArt.rect(art, x, deckY - 3, 1, 3, woodDark);
+        }
+
+        // glass lookout cab
+        int cabTop = deckY - 15;
+        PixelArt.rect(art, cx - 10, cabTop, 20, 12, out);
+        PixelArt.rect(art, cx - 9, cabTop + 1, 18, 10, new Color(128, 194, 222));
+        for (int x = cx - 9; x < cx + 9; x += 4) {
+            PixelArt.rect(art, x, cabTop + 1, 1, 10, wood);
+        }
+        PixelArt.px(art, cx - 7, cabTop + 2, new Color(226, 244, 252));
+        PixelArt.px(art, cx - 6, cabTop + 2, new Color(226, 244, 252));
+        PixelArt.px(art, cx - 7, cabTop + 3, new Color(226, 244, 252));
+        PixelArt.px(art, cx + 2, cabTop + 3, new Color(226, 244, 252));
+        PixelArt.rect(art, cx - 9, cabTop + 9, 18, 2, PixelArt.shade(new Color(128, 194, 222), 0.75));
+
+        // pointed shingle roof
+        Color[] roofTones = {new Color(104, 150, 200), new Color(72, 112, 168), new Color(50, 78, 126)};
+        int roofBottom = cabTop;
+        for (int i = 0; i < 10; i++) {
+            int y = roofBottom - i;
+            int half = 12 - i;
+            PixelArt.rect(art, cx - half - 1, y, half * 2 + 2, 1, out);
+            if (i < 9) {
+                PixelArt.rect(art, cx - half, y, half * 2, 1, roofTones[i % 3]);
+                PixelArt.px(art, cx - half, y, roofTones[0]);
+            }
+        }
+
+        // antenna and blinking beacon
+        int mastTop = roofBottom - 17;
+        PixelArt.rect(art, cx, mastTop, 1, 8, new Color(84, 70, 70));
+        PixelArt.rect(art, cx - 2, mastTop + 3, 5, 1, new Color(84, 70, 70));
+        boolean beaconOn = (frame / 40) % 2 == 0;
+        if (beaconOn) {
+            art.setColor(new Color(255, 80, 60, 90));
+            art.fillRect(cx - 2, mastTop - 4, 5, 5);
+        }
+        PixelArt.rect(art, cx - 1, mastTop - 3, 3, 3, out);
+        PixelArt.px(art, cx, mastTop - 2, beaconOn ? new Color(255, 96, 72) : new Color(120, 40, 36));
     }
 
     // allows air traffic control to decide whether a plane can takeoff or not
