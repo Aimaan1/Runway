@@ -82,7 +82,7 @@ public class Moveable extends Vector2  {
         flightPath = givenPath;
         setTarget(flightPath.get(NavigationIndex).getPosition());
         } else {
-            System.out.println("Null array or empty array given as flight path!!!!");
+            SimLog.warn("Null array or empty array given as flight path!!!!");
         }
     }
 
@@ -178,7 +178,7 @@ public class Moveable extends Vector2  {
                     currentNode = flightPath.get(NavigationIndex);
                     setReachedTarget(false);
                     flightPath.get(NavigationIndex).setOccupied(true); // ensure no other aircrafts can go to the node
-                    System.out.println("New target set!");
+                    SimLog.debug("New target set!");
                 } else if (getReachedTarget() == true && flightPath.size() > NavigationIndex + 1 && flightPath.get(NavigationIndex +1).getOccupied() == true && selected == false) {
                     CheckIfNextPathIsBlocked();
                 } // if the aircraft is selected to go on airfield
@@ -189,7 +189,7 @@ public class Moveable extends Vector2  {
                     currentNode = flightPath.get(NavigationIndex);
                     setReachedTarget(false);
                     flightPath.get(NavigationIndex).setOccupied(true); // ensure no other aircrafts can go to the node
-                    System.out.println("Going to airfield");
+                    SimLog.debug("Going to airfield");
                 } else if (selected == false && currentNode.getNodeTileRepresentation().equalsIgnoreCase("RUNWAY")) {
                     reverseAircraft();
                 }
@@ -200,7 +200,7 @@ public class Moveable extends Vector2  {
     public void CheckIfNextPathIsBlocked() {
         if (flightPath != null && !flightPath.isEmpty() && getReachedTarget() == true && flightPath.size()-1 > NavigationIndex + 1 && flightPath.get(NavigationIndex +1).getOccupied() == true) {
                 blocking = true;
-                System.out.println("I am being blocked!!!");
+                SimLog.debug("I am being blocked!!!");
             } else {
             blocking = false;
         }
@@ -220,7 +220,7 @@ public class Moveable extends Vector2  {
             NavigationIndex--;
             blocking = false;
         } else {
-            System.out.println("Cannot reverse, path is already at start!");
+            SimLog.debug("Cannot reverse, path is already at start!");
         }
     }
 }

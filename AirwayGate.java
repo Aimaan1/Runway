@@ -101,9 +101,9 @@ public class AirwayGate implements drawable {
                     removePlane(); // removes from gate
                 }
             } catch (NullPointerException e) {
-                System.out.println("Null pointer exception happened while leaving the gate!:" + e);
+                SimLog.warn("Null pointer exception happened while leaving the gate!:" + e);
             } catch (Exception e) {
-                System.out.println("An error occured while leaving gate: " + e);
+                SimLog.warn("An error occured while leaving gate: " + e);
             }
         }
     }
@@ -121,13 +121,13 @@ public class AirwayGate implements drawable {
                     selectedAircraft.setGate(this);
                     gateNode.isOccupied = true;
                     } catch (OccupancyException e) {
-                    System.out.println("Occupancy Error at gate: " + e.getMessage());
+                    SimLog.warn("Occupancy Error at gate: " + e.getMessage());
                     } catch (Exception e) {
-                       System.out.println("Error occured at gate: " + e.getMessage()); 
+                       SimLog.warn("Error occured at gate: " + e.getMessage()); 
                 }
             }
         } else {
-            System.out.println("Aircraft not at this gate!"); 
+            SimLog.debug("Aircraft not at this gate!"); 
         }
     }
 

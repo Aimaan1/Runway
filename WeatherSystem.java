@@ -146,7 +146,7 @@ public class WeatherSystem {
             try {
                 tick();
             } catch (Throwable error) {
-                System.out.println("Weather tick failed: " + error);
+                SimLog.warn("Weather tick failed: " + error);
             }
         }, 0, TICK_MS, TimeUnit.MILLISECONDS);
     }
@@ -344,7 +344,7 @@ public class WeatherSystem {
             visibleBolt = ready;
             boltVisibleUntil = now + 600;
             flash = 1.0;
-            System.out.println("Lightning strike near (" + (int) ready.getStrikeX() + ", " + (int) ready.getStrikeY() + ")");
+            SimLog.debug("Lightning strike near (" + (int) ready.getStrikeX() + ", " + (int) ready.getStrikeY() + ")");
         }
 
         flash *= 0.86;
@@ -365,7 +365,7 @@ public class WeatherSystem {
                         if (bolt != null) {
                             finishedBolt.set(bolt);
                         } else {
-                            System.out.println("Could not build lightning bolt: " + error);
+                            SimLog.warn("Could not build lightning bolt: " + error);
                         }
                         boltBeingGenerated.set(false);
                     });

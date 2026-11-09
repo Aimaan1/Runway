@@ -54,7 +54,7 @@ public class AirTrafficControl implements drawable, Position {
                 StartingNode.setOccupied(true);
                 path = shortestPathNode(path);
             } catch (NullPointerException e) {
-                System.out.println("NULL ERROR IN PATH: " + e);
+                SimLog.warn("NULL ERROR IN PATH: " + e);
                 return null;
             }
         } else {
@@ -135,7 +135,7 @@ public class AirTrafficControl implements drawable, Position {
         }
 
        givenArray.remove(givenArray.size()-1);
-        System.out.println("Returned null in path!");
+        SimLog.debug("Returned null in path!");
         return null; // after checking that all other slots are null, meaning this branch isn't it
     }
     
@@ -329,7 +329,7 @@ public class AirTrafficControl implements drawable, Position {
     public void ClearAircraftForTakeOff(Aircraft selectedAircraft, ArrayList<Node> flightOutside, ArrayList<Node> airfieldRef) {
         if (airfieldRef != null && !airfieldRef.isEmpty() && selectedAircraft != null && flightOutside != null && !flightOutside.isEmpty()) {
             if (selectedAircraft.canFly() == true && selectedAircraft.getChosenToFly()) {
-                System.out.println("Go for takeoff!!!");
+                SimLog.debug("Go for takeoff!!!");
                 ResetAircraft(flyingAircraft);
                 OccupiedAirfield = true;
                 AirfieldNodeChanger(airfieldRef);
@@ -387,7 +387,7 @@ public class AirTrafficControl implements drawable, Position {
                     flyingAircraft.setStatus("GROUNDED");
                     OccupiedAirfield = true;
                     AirfieldNodeChanger(airfieldRef);
-                    System.out.println("attempting to land!");
+                    SimLog.debug("attempting to land!");
                 }
             }
         }
@@ -408,7 +408,7 @@ public class AirTrafficControl implements drawable, Position {
             Node selectedNode = nodeSet.get(numberSelected);
             return selectedNode.getNodeID();
         } else {
-            System.out.println("Cannot get a random node ID. Array is null or is empty");
+            SimLog.warn("Cannot get a random node ID. Array is null or is empty");
             return null;
         }
     }

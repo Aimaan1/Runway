@@ -154,7 +154,7 @@ public abstract class Aircraft extends Moveable implements drawable, Status {
     public void warmUpEngines() {
         if (countdown <= 0 && canFly()) {
             countdown = 200;
-            System.out.println("Preparing for takeoff");
+            SimLog.debug("Preparing for takeoff");
         }
     }
 
